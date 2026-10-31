@@ -47,13 +47,13 @@ O fluxo de trabalho estabelece uma cadeia de responsabilidade onde nenhuma concl
 
 ```mermaid
 flowchart TD
-    A["Analista de Dados (Humano)<br>Definicao do Escopo e Perguntas de Negocio"] --> B["Orquestrador (Gemini 4 Argon)<br>Planejamento da EDA e Especificacoes"]
-    B -->|"Delegacao de Exploracao (Somente Leitura)"| C["Subagente explorer (Gemini 3.8 Flash)<br>Varredura de Esquemas e Chaves Primarias"]
-    B -->|"Delegacao de Implementacao e Execucao"| D["Subagente executor (Gemini 3.8 Flash)<br>Codificacao e Execucao do Kernel Jupyter"]
+    A["Analista de Dados (Humano): Escopo e Hipóteses de Negócio"] --> B["Orquestrador (Gemini 4 Argon): Planejamento da EDA e Especificação"]
+    B -->|"Delegação de Exploração (Somente Leitura)"| C["Subagente explorer (Gemini 3.8 Flash): Esquemas e Chaves Primárias"]
+    B -->|"Delegação de Implementação e Execução"| D["Subagente executor (Gemini 3.8 Flash): Código e Kernel Jupyter"]
     C -->|"Resumo Estruturado de Esquemas"| B
-    D -->|"Log de Execucao e Sanity Check"| B
-    B -->|"Auditoria Cruzada e Validacao"| E["Artefatos Finais Auditados<br>(analysis.ipynb e README.md)"]
-    E -->|"Revisao Critica e Aprovacao"| A
+    D -->|"Log de Execução e Sanity Check"| B
+    B -->|"Auditoria Cruzada nos Arquivos"| E["Artefatos Auditados (analysis.ipynb e README.md)"]
+    E -->|"Revisão Crítica e Validação"| A
 ```
 
 Essa separação arquitetural permitiu detectar precocemente e tratar com rigor anomalias como o underflow de 32 bits sem sinal (`uint32`) em `votes_funny`, os outliers extremos provocados por textos de copypasta (com milhões de caracteres) e o desalinhamento temporal de telemetria (`playtime_at_review > playtime_forever`), auditando os resultados de cada célula do notebook antes da consolidação final da documentação.
