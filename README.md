@@ -4,17 +4,19 @@ Análise de 1.000.000 de avaliações da Steam, de março de 2013 a janeiro de 2
 
 A Steam é a principal loja digital de jogos para computador, com centenas de milhões de usuários ativos por mês e dezenas de milhares de títulos. A avaliação pesa na visibilidade do jogo, no algoritmo de recomendação e na compra.
 
-A análise usou o Gemini 4 Argon para planejar e revisar, e os subagentes `explorer` e `executor` no Gemini 3.8 Flash para ler os CSV e escrever o notebook. O protocolo está em `AGENTS.md`.
+A análise é assistida por IA. O escopo ficou mais solto do que um roteiro fechado de perguntas: o teste era o que o Gemini 4 Argon recuperava dos CSV sem um dicionário de dados. Os subagentes `explorer` e `executor` usam o Gemini 3.8 Flash para ler os arquivos e escrever o notebook. O protocolo está em `AGENTS.md`.
 
-## 1. Metodologia
+## 1. Metodologia do experimento
 
-O `AGENTS.md` é curto porque a base tem 1 milhão de linhas e cerca de 481 MB em 4 CSVs. Instrução longa e genérica ocupa a janela do modelo principal e aumenta a chance de erro na análise.
+O modelo da conversa principal é o Gemini 4 Argon. Em 13 de outubro de 2026, a Google o lançou para uso geral como modelo de fronteira para trabalho longo em código, finanças, direito e ciência. No [model card](https://deepmind.google/models/model-cards/gemini-4-argon/) daquele mês, o Argon lidera a tabela de comparação no [Vals Index](https://www.vals.ai/benchmarks/vals_index) (68,9%, contra 67,0% do Claude Opus 5.5 e 63,1% do GPT-6 Astra) e em Chartography, leitura de gráficos (71,6%, contra 71,0% e 66,3%). No [exame de análise de dados da Plotly](https://plotly.com/blog/gemini-4-argon-plotly-data-analytics-bench/), publicado no mesmo dia, o Argon acertou 41 de 43 questões (95%) e achou os 5 padrões escondidos na base, sem aviso para procurá-los. Até aquela data, só o GPT-6.1 Sol e o GPT-6 Astra tinham fechado os 5. O total de 41 não era o maior da prova: Sol e Astra fecharam 43 de 43.
 
-O arquivo define quando delegar, o que o prompt precisa levar e o que volta. Varredura larga ou execução pesada vai para um subagente. O prompt leva o objetivo, os arquivos, o critério de pronto e o comando de verificação. O `explorer` devolve caminhos, linhas e um resumo. O `executor` devolve os arquivos alterados e o log da verificação.
+Em 30 de outubro de 2026 o [Gemini 4 Carbon](https://blog.google/innovation-and-ai/models-and-research/gemini-models/introducing-gemini-4-carbon/), anunciado em 28 de outubro, lidera o Artificial Analysis Intelligence Index v5.0 com 59, contra 50 do Argon, na [tabela da DeepMind](https://deepmind.google/models/gemini/). Nesse dia ele ainda não está no uso geral. A Google libera o Carbon primeiro a um grupo de defensores de cibersegurança pelo [Fairwind](https://deepmind.google/fairwind-program/), e só depois a desenvolvedores, empresas e consumidores, sem data publicada. Para quem usa o Gemini no produto, o Argon, aberto ao público desde 13 de outubro, é o modelo de fronteira acessível. Esta análise ficou nele.
 
-O `AGENTS.md` e o prompt inicial não descreviam as colunas nem a relação entre as tabelas. Lendo os CSV, o Argon e o Flash chegaram à partição vertical 1:1 por `review_id`, ao underflow `uint32` em `votes_funny`, ao spam de copypasta e ao efeito da janela de reembolso de 2 horas.
+O experimento daqui não usa a nota desses exames. O `AGENTS.md` e o prompt inicial não descrevem as colunas nem a relação entre as tabelas. O arquivo só define a delegação: quando chamar um subagente, o que o prompt leva (objetivo, arquivos, critério de pronto e comando de verificação) e o que volta. O `explorer` devolve caminhos, linhas e um resumo. O `executor` devolve os arquivos alterados e o log da verificação.
 
-Em produção, o `AGENTS.md` leva uma descrição curta dos dados: granularidade, regras de negócio já conhecidas e objetivo da análise. A primeira passagem já começa na pergunta da análise.
+Lendo os arquivos, o Argon e o Flash chegaram à partição vertical 1:1 por `review_id`, ao underflow `uint32` em `votes_funny`, ao spam de copypasta e ao efeito da janela de reembolso de 2 horas. Nesse critério, o experimento fechou: os quatro achados saíram dos CSV, sem dicionário, e a revisão conferiu o resultado nos arquivos.
+
+Em produção, o `AGENTS.md` leva uma descrição curta dos dados: granularidade, regras de negócio já conhecidas e a pergunta da análise. Neste estudo essa descrição ficou de fora.
 
 Na mesma conversa, um agente só acumula leitura integral de arquivo, saída do Pandas, traceback e o JSON do notebook. Nesta análise, o Argon escreveu um prompt fechado para cada tarefa. O subagente começou sem o histórico anterior. O `explorer` só leu. O `executor` gravou o `analysis.ipynb`, subiu o kernel do JupyterLab e rodou a verificação. O Argon conferiu o relatório em `analysis.ipynb` e neste `README.md` antes de aceitar. Métrica divergente reabria o ciclo. No sanity check, o Flash escreveu e rodou o script. O que entrava no teste, e a leitura do resultado, ficaram com o Argon.
 
