@@ -23,40 +23,44 @@ Além da investigação empírica sobre o ecossistema da Steam, este repositóri
 ## 2. Metodologia: Análise de Dados Assistida por IA (`AGENTS.md`)
 
 ### 2.1 Por que um `AGENTS.md` Minimalista?
-Em projetos de análise de dados orientados a bases massivas — como o presente estudo, que abrange 1 milhão de registros e aproximadamente 481 MB de dados distribuídos em 4 arquivos CSV —, a janela de contexto do modelo principal é o recurso mais sensível. Instruções de sistema longas, repletas de regras genéricas e prescrições abstratas, diluem a atenção do modelo e aumentam o risco de desvios operacionais ou alucinações estatísticas.
+Em projetos de análise de dados orientados a bases massivas — como o presente estudo, que abrange 1 milhão de registros e aproximadamente 481 MB de dados distribuídos em 4 arquivos CSV —, a janela de contexto do modelo principal é o recurso mais sensível. Instruções de sistema longas, repletas de regras genéricas e prescrições abstratas, diluem a atenção do modelo e aumentam o risco de desvios operacionais ou erros estatísticos.
 
 O arquivo `AGENTS.md` deste projeto foi estruturado de forma enxuta justamente para atuar como um contrato operacional direto e objetivo. Ele estabelece com clareza:
-* **Quando delegar**: Tarefas de varredura ampla de arquivos, exploração de esquemas, execução de testes ou comandos iterativos que poluiriam o contexto principal são direcionadas a subagentes.
-* **Como delegar**: Cada despacho deve conter formalmente objetivo, arquivos de trabalho, critérios de pronto e comandos explícitos de verificação.
-* **O que deve retornar**: Devoluções concisas contendo apenas caminhos, trechos e resumos para exploração, ou arquivos modificados e relatórios de verificação para execução.
+* **Quando delegar**: Tarefas de varredura ampla de arquivos, exploração de esquemas, escrita extensa de código ou execução de testes e builds que poluiriam o contexto principal são direcionadas a subagentes.
+* **Como delegar**: Cada subagente nasce sem o histórico da conversa principal; por isso, o prompt de invocação enviado pelo orquestrador leva sempre quatro elementos: o objetivo, os arquivos ou diretórios-alvo, o critério de pronto e como verificar o resultado.
+* **O que deve retornar**: Devoluções concisas contendo caminhos, linhas, trechos e resumo para exploração (`explorer`), ou arquivos alterados, comando de verificação e resultado para execução (`executor`).
 
-### 2.2 Divisão de Papéis: Orquestrador vs. Subagentes na Ciência de Dados
-O uso de agentes monolíticos em ciência de dados frequentemente falha pelo acúmulo desordenado de artefatos intermediários: a leitura integral de múltiplos arquivos, saídas volumosas de comandos no Pandas, tracebacks de depuração e estruturas JSON brutas de notebooks Jupyter degradam rapidamente o contexto analítico. Como consequência, o modelo perde o alinhamento com premissas de negócio e introduz inconsistências métricas.
+### 2.2 O Loop de Execução e a Higiene de Contexto
+O uso de um único agente monolítico em ciência de dados frequentemente perde qualidade ao longo da sessão pelo acúmulo de ruído: leituras integrais de múltiplos arquivos, saídas intermediárias do Pandas, *tracebacks* de depuração e estruturas JSON brutas de notebooks Jupyter degradam a atenção do modelo.
 
-A estrutura adotada distribui o ciclo de análise em papéis bem definidos:
+Para evitar esse efeito, o projeto opera em um **loop estruturado de orquestração, delegação com contexto limpo e revisão**:
 
-| Camada | Papel / Modelo | Responsabilidade no Ciclo Analítico | Ganho Prático na Análise |
-| :--- | :--- | :--- | :--- |
-| **Direção Analítica** | Analista de Dados (Humano) | Formulação do problema, direcionamento de escopo, validação de hipóteses de negócio e revisão crítica. | Mantém o foco estratégico e o julgamento de domínio. |
-| **Orquestração e Revisão** | Agente Principal (`Gemini 4 Argon`) | Planejamento das etapas da EDA, escrita das especificações de delegação e auditoria cruzada dos resultados nos arquivos. | Contexto limpo, preservado para raciocínio analítico e verificação de consistência. |
-| **Exploração de Dados** | Subagente `explorer` (`Gemini 3.8 Flash`) | Varredura paralela e somente-leitura dos arquivos CSV, mapeamento de chaves (`review_id`), esquemas e volumetria. | Isola leituras pesadas e retorna apenas o resumo estruturado ao orquestrador. |
-| **Execução e Sanity Check** | Subagente `executor` (`Gemini 3.8 Flash`) | Escrita das células no `analysis.ipynb`, execução do kernel Jupyter, geração de gráficos e bateria de validação (*Sanity Check*). | Absorve logs de execução e garante que todo número documentado reflita a saída real do código. |
-
-### 2.3 Fluxo de Trabalho e Garantia de Qualidade (Sanity Check)
-O fluxo de trabalho estabelece uma cadeia de responsabilidade onde nenhuma conclusão estatística é aceita sem verificação empírica no código:
+1. **Planejamento e Criação do Prompt (Orquestrador `Gemini 4 Argon`)**: A partir da direção do analista humano, o Argon desenha a estratégia analítica e instancia quantos subagentes forem necessários, escrevendo para cada um deles um prompt específico e autocontido.
+2. **Execução em Contexto Limpo (Subagentes `Gemini 3.8 Flash`)**: Cada subagente inicia sua tarefa com uma janela de contexto totalmente limpa — sem carregar o peso das etapas anteriores. O `explorer` mapeia os dados em modo somente-leitura, enquanto o `executor` escreve o código no `analysis.ipynb`, roda o kernel do JupyterLab e executa os scripts de verificação.
+3. **Retorno e Auditoria nos Arquivos (Revisão pelo `Gemini 4 Argon`)**: Os subagentes encerram sua execução e devolvem um relatório objetivo ao Argon. Antes de aceitar qualquer entrega, o Argon confere o resultado diretamente nos arquivos gerados (`analysis.ipynb` e `README.md`). Se identificar qualquer divergência métrica ou necessidade de ajuste, ele dispara um novo ciclo de correção. Mesmo na etapa de *Sanity Check*, embora o `3.8 Flash` codifique e execute os scripts de teste, toda a especificação do que deve ser verificado e a revisão crítica do resultado cabem ao Argon.
 
 ```mermaid
 flowchart TD
-    A["Analista de Dados (Humano): Escopo e Hipóteses de Negócio"] --> B["Orquestrador (Gemini 4 Argon): Planejamento da EDA e Especificação"]
-    B -->|"Delegação de Exploração (Somente Leitura)"| C["Subagente explorer (Gemini 3.8 Flash): Esquemas e Chaves Primárias"]
-    B -->|"Delegação de Implementação e Execução"| D["Subagente executor (Gemini 3.8 Flash): Código e Kernel Jupyter"]
-    C -->|"Resumo Estruturado de Esquemas"| B
-    D -->|"Log de Execução e Sanity Check"| B
-    B -->|"Auditoria Cruzada nos Arquivos"| E["Artefatos Auditados (analysis.ipynb e README.md)"]
-    E -->|"Revisão Crítica e Validação"| A
+    A["Analista de Dados (Humano): Direção de Negócio e Escopo"] --> B["Orquestrador (Gemini 4 Argon): Planeja e Cria Prompts de Delegação"]
+    B -->|"1. Instancia com Prompt Próprio e Contexto Limpo"| C["Subagente explorer (Gemini 3.8 Flash): Mapeia CSVs e Esquemas"]
+    B -->|"1. Instancia com Prompt Próprio e Contexto Limpo"| D["Subagente executor (Gemini 3.8 Flash): Codifica Notebook e Roda Sanity Check"]
+    C -->|"2. Retorna Caminhos, Linhas e Resumo"| E["Revisão pelo Argon: Audita Resultado nos Arquivos"]
+    D -->|"2. Retorna Arquivos Alterados e Log de Verificação"| E
+    E -->|"Divergência Detectada: Novo Ciclo de Ajuste"| B
+    E -->|"3. Aprovado com 100% de Consistência"| F["Artefatos Finais Validados (analysis.ipynb e README.md)"]
 ```
 
-Essa separação arquitetural permitiu detectar precocemente e tratar com rigor anomalias como o underflow de 32 bits sem sinal (`uint32`) em `votes_funny`, os outliers extremos provocados por textos de copypasta (com milhões de caracteres) e o desalinhamento temporal de telemetria (`playtime_at_review > playtime_forever`), auditando os resultados de cada célula do notebook antes da consolidação final da documentação.
+### 2.3 Alocação Inteligente de Modelos e Otimização de Cotas
+Essa arquitetura aplica uma boa prática central de engenharia de IA na era atual: **alocar cada modelo exatamente onde ele entrega sua maior vantagem comparativa**, otimizando simultaneamente a qualidade analítica e o consumo de cotas:
+
+| Camada | Papel / Modelo | Onde Atua (Foco de Valor) | Impacto em Qualidade e Consumo de Cota |
+| :--- | :--- | :--- | :--- |
+| **Direção Analítica** | Analista de Dados (Humano) | Formulação do problema, hipóteses de negócio e validação estratégica. | Garante alinhamento com o domínio real do produto. |
+| **Orquestração e Revisão** | Modelo Forte (`Gemini 4 Argon`) | Raciocínio analítico complexo, escrita de prompts precisos de delegação e auditoria rigorosa dos resultados. | Preserva a cota do modelo mais capaz apenas para decisões críticas e revisão, mantendo o contexto leve e focado. |
+| **Exploração de Dados** | Subagente `explorer` (`Gemini 3.8 Flash`) | Varredura rápida de grandes arquivos CSV, inspeção de colunas, tipos e chaves primárias (`review_id`). | Consome tokens econômicos e velozes na leitura bruta de dados sem poluir a conversa principal. |
+| **Execução e Sanity Check** | Subagente `executor` (`Gemini 3.8 Flash`) | Escrita de código Pandas/Seaborn, execução do kernel Jupyter, geração de gráficos e scripts de *Sanity Check*. | Absorve o custo de tokens de codificação e validação repetitiva sob supervisão direta do Argon. |
+
+Na prática, essa divisão faz com que o **resultado final seja semelhante ou superior ao de deixar apenas um modelo de ponta fazendo todo o trabalho sozinho**, com o bônus de consumir significativamente menos cota do modelo principal. Como o `Gemini 4 Argon` não desgasta sua janela de contexto com tarefas mecânicas de execução, sua capacidade de revisão permanece alta do início ao fim — o que permitiu identificar e documentar com precisão anomalias como o underflow `uint32` em `votes_funny`, os spams de copypasta com milhões de caracteres e as inconsistências temporais de `playtime`.
 
 ---
 
