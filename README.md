@@ -22,13 +22,15 @@ Além da investigação empírica sobre o ecossistema da Steam, este repositóri
 
 ## 2. Metodologia: Análise de Dados Assistida por IA (`AGENTS.md`)
 
-### 2.1 Por que um `AGENTS.md` Minimalista?
+### 2.1 Por que um `AGENTS.md` Minimalista (e o Teste de Descoberta às Cegas)?
 Em projetos de análise de dados orientados a bases massivas — como o presente estudo, que abrange 1 milhão de registros e aproximadamente 481 MB de dados distribuídos em 4 arquivos CSV —, a janela de contexto do modelo principal é o recurso mais sensível. Instruções de sistema longas, repletas de regras genéricas e prescrições abstratas, diluem a atenção do modelo e aumentam o risco de desvios operacionais ou erros estatísticos.
 
-O arquivo `AGENTS.md` deste projeto foi estruturado de forma enxuta justamente para atuar como um contrato operacional direto e objetivo. Ele estabelece com clareza:
-* **Quando delegar**: Tarefas de varredura ampla de arquivos, exploração de esquemas, escrita extensa de código ou execução de testes e builds que poluiriam o contexto principal são direcionadas a subagentes.
-* **Como delegar**: Cada subagente nasce sem o histórico da conversa principal; por isso, o prompt de invocação enviado pelo orquestrador leva sempre quatro elementos: o objetivo, os arquivos ou diretórios-alvo, o critério de pronto e como verificar o resultado.
-* **O que deve retornar**: Devoluções concisas contendo caminhos, linhas, trechos e resumo para exploração (`explorer`), ou arquivos alterados, comando de verificação e resultado para execução (`executor`).
+O arquivo `AGENTS.md` deste projeto foi estruturado de forma enxuta por dois motivos complementares:
+
+1. **Contrato Operacional Direto**: Definir apenas as fronteiras de coordenação — **quando delegar** (varreduras amplas ou execuções pesadas vão para subagentes), **como delegar** (enviando objetivo, arquivos-alvo, critério de pronto e comando de verificação) e **o que deve retornar** (resumos estruturados do `explorer` ou arquivos alterados e logs de verificação do `executor`).
+2. **Experimento de Descoberta Autônoma (*Blind Data Discovery*)**: Intencionalmente, não foi fornecida no `AGENTS.md` (nem no prompt inicial) nenhuma descrição prévia sobre o domínio dos dados, o significado das colunas ou a relação entre as tabelas. O objetivo foi colocar à prova a capacidade do orquestrador (`Gemini 4 Argon`) e dos subagentes (`Gemini 3.8 Flash`) de inspecionar os arquivos brutos do zero, deduzir a modelagem relacional (a partição vertical 1:1 via `review_id`), diagnosticar anomalias técnicas ocultas (como o underflow `uint32` em `votes_funny` e os spams de copypasta) e formular hipóteses de negócio aderentes ao ecossistema da Steam (como o efeito da janela de reembolso de 2 horas).
+
+> **Nota de Boas Práticas para Produção**: Embora o teste de descoberta às cegas tenha sido um sucesso neste experimento — demonstrando a capacidade dos agentes de mapear esquemas e regras de negócio de forma autônoma —, em projetos reais de produção recomenda-se incluir no `AGENTS.md` (ou em um documento de contexto associado) uma breve introdução sobre os dados, a granularidade das tabelas, as regras de negócio conhecidas e o objetivo analítico principal. Isso poupa ciclos iniciais de descoberta e direciona os agentes imediatamente para as perguntas estratégicas do negócio.
 
 ### 2.2 O Loop de Execução e a Higiene de Contexto
 O uso de um único agente monolítico em ciência de dados frequentemente perde qualidade ao longo da sessão pelo acúmulo de ruído: leituras integrais de múltiplos arquivos, saídas intermediárias do Pandas, *tracebacks* de depuração e estruturas JSON brutas de notebooks Jupyter degradam a atenção do modelo.
