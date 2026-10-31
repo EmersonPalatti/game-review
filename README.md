@@ -1,45 +1,22 @@
-# Steam Game Reviews: Análise Exploratória de Dados (1 Milhão de Reviews)
+# Steam Game Reviews: análise exploratória de dados (1 milhão de reviews)
 
-> Análise exploratória sobre integridade relacional, telemetria de jogadores, comportamento de avaliações e dinâmica de consumo na Steam, aliando a investigação de 1 milhão de registros a uma metodologia prática de análise de dados assistida por agentes de IA.
+Análise de 1.000.000 de avaliações da Steam, de março de 2013 a janeiro de 2021, a partir do [Game Reviews Dataset](https://www.kaggle.com/datasets/sridharstreaks/game-reviews-dataset). A base cobre 59 jogos e 912.553 autores. O estudo mede a consistência entre as tabelas, a diferença entre quem recomenda e quem não recomenda, e o tempo de jogo.
 
----
+A Steam é a principal loja digital de jogos para computador, com centenas de milhões de usuários ativos por mês e dezenas de milhares de títulos. A avaliação pesa na visibilidade do jogo, no algoritmo de recomendação e na compra.
 
-## 1. Visão Geral do Projeto
+A análise usou o Gemini 4 Argon para planejar e revisar, e os subagentes `explorer` e `executor` no Gemini 3.8 Flash para ler os CSV e escrever o notebook. O protocolo está em `AGENTS.md`.
 
-A Steam é a principal plataforma de distribuição digital de jogos para computadores, com centenas de milhões de usuários ativos mensais e dezenas de milhares de títulos em catálogo. O sistema de avaliações de usuários tem papel central na visibilidade de cada jogo na loja, influenciando o algoritmo de recomendação e as decisões de compra da comunidade.
+## 1. Metodologia
 
-Este projeto realiza uma Análise Exploratória de Dados (EDA) em um conjunto de 1.000.000 de avaliações de usuários registradas entre março de 2013 e janeiro de 2021. Os dados têm como origem o [Game Reviews Dataset](https://www.kaggle.com/datasets/sridharstreaks/game-reviews-dataset) no Kaggle. O corpus cobre 59 jogos e 912.553 autores distintos, permitindo investigar a consistência dos dados da plataforma, o comportamento de jogadores satisfeitos versus insatisfeitos e os padrões de consumo e tempo de jogo.
+O `AGENTS.md` é curto porque a base tem 1 milhão de linhas e cerca de 481 MB em 4 CSVs. Instrução longa e genérica ocupa a janela do modelo principal e aumenta a chance de erro na análise.
 
-Além da investigação empírica sobre o ecossistema da Steam, este repositório documenta uma metodologia prática de **Análise de Dados Assistida por IA** (*AI-Assisted Data Analysis*). Nela, o analista utiliza uma arquitetura em camadas — combinando um modelo orquestrador e revisor de alto raciocínio com subagentes especializados e rápidos de exploração e execução — para investigar bases volumosas mantendo rigor estatístico, reprodutibilidade e higiene da janela de contexto.
+O arquivo define quando delegar, o que o prompt precisa levar e o que volta. Varredura larga ou execução pesada vai para um subagente. O prompt leva o objetivo, os arquivos, o critério de pronto e o comando de verificação. O `explorer` devolve caminhos, linhas e um resumo. O `executor` devolve os arquivos alterados e o log da verificação.
 
-### Destaques do Estudo:
-* **Escala do Dataset**: 1.000.000 de registros particionados verticalmente em 4 tabelas relacionais com integridade referencial 1:1 estrita.
-* **Auditoria e Limpeza de Dados**: Identificação e tratamento de underflow de 32 bits sem sinal (`uint32`) em contadores de votos, textos com milhões de caracteres decorrentes de spam/copypasta, valores nulos e inconsistências na telemetria de horas de jogo.
-* **Comportamento e Negócio**: Investigação quantitativa da dinâmica de avaliações negativas ("Economia da Insatisfação"), do efeito direto da política de reembolso de 2 horas da Valve e do impacto de lançamentos em Acesso Antecipado (*Early Access*).
-* **Fluxo Analítico com Orquestrador e Subagentes (`AGENTS.md`)**: Adoção de uma arquitetura modular em camadas, separando o raciocínio estratégico e validação estatística da execução pesada de código e leitura de dados volumosos.
+O `AGENTS.md` e o prompt inicial não descreviam as colunas nem a relação entre as tabelas. Lendo os CSV, o Argon e o Flash chegaram à partição vertical 1:1 por `review_id`, ao underflow `uint32` em `votes_funny`, ao spam de copypasta e ao efeito da janela de reembolso de 2 horas.
 
----
+Em produção, o `AGENTS.md` leva uma descrição curta dos dados: granularidade, regras de negócio já conhecidas e objetivo da análise. A primeira passagem já começa na pergunta da análise.
 
-## 2. Metodologia: Análise de Dados Assistida por IA (`AGENTS.md`)
-
-### 2.1 Por que um `AGENTS.md` Minimalista (e o Teste de Descoberta às Cegas)?
-Em projetos de análise de dados orientados a bases massivas — como o presente estudo, que abrange 1 milhão de registros e aproximadamente 481 MB de dados distribuídos em 4 arquivos CSV —, a janela de contexto do modelo principal é o recurso mais sensível. Instruções de sistema longas, repletas de regras genéricas e prescrições abstratas, diluem a atenção do modelo e aumentam o risco de desvios operacionais ou erros estatísticos.
-
-O arquivo `AGENTS.md` deste projeto foi estruturado de forma enxuta por dois motivos complementares:
-
-1. **Contrato Operacional Direto**: Definir apenas as fronteiras de coordenação — **quando delegar** (varreduras amplas ou execuções pesadas vão para subagentes), **como delegar** (enviando objetivo, arquivos-alvo, critério de pronto e comando de verificação) e **o que deve retornar** (resumos estruturados do `explorer` ou arquivos alterados e logs de verificação do `executor`).
-2. **Experimento de Descoberta Autônoma (*Blind Data Discovery*)**: Intencionalmente, não foi fornecida no `AGENTS.md` (nem no prompt inicial) nenhuma descrição prévia sobre o domínio dos dados, o significado das colunas ou a relação entre as tabelas. O objetivo foi colocar à prova a capacidade do orquestrador (`Gemini 4 Argon`) e dos subagentes (`Gemini 3.8 Flash`) de inspecionar os arquivos brutos do zero, deduzir a modelagem relacional (a partição vertical 1:1 via `review_id`), diagnosticar anomalias técnicas ocultas (como o underflow `uint32` em `votes_funny` e os spams de copypasta) e formular hipóteses de negócio aderentes ao ecossistema da Steam (como o efeito da janela de reembolso de 2 horas).
-
-> **Nota de Boas Práticas para Produção**: Embora o teste de descoberta às cegas tenha sido um sucesso neste experimento — demonstrando a capacidade dos agentes de mapear esquemas e regras de negócio de forma autônoma —, em projetos reais de produção recomenda-se incluir no `AGENTS.md` (ou em um documento de contexto associado) uma breve introdução sobre os dados, a granularidade das tabelas, as regras de negócio conhecidas e o objetivo analítico principal. Isso poupa ciclos iniciais de descoberta e direciona os agentes imediatamente para as perguntas estratégicas do negócio.
-
-### 2.2 O Loop de Execução e a Higiene de Contexto
-O uso de um único agente monolítico em ciência de dados frequentemente perde qualidade ao longo da sessão pelo acúmulo de ruído: leituras integrais de múltiplos arquivos, saídas intermediárias do Pandas, *tracebacks* de depuração e estruturas JSON brutas de notebooks Jupyter degradam a atenção do modelo.
-
-Para evitar esse efeito, o projeto opera em um **loop estruturado de orquestração, delegação com contexto limpo e revisão**:
-
-1. **Planejamento e Criação do Prompt (Orquestrador `Gemini 4 Argon`)**: A partir da direção do analista humano, o Argon desenha a estratégia analítica e instancia quantos subagentes forem necessários, escrevendo para cada um deles um prompt específico e autocontido.
-2. **Execução em Contexto Limpo (Subagentes `Gemini 3.8 Flash`)**: Cada subagente inicia sua tarefa com uma janela de contexto totalmente limpa — sem carregar o peso das etapas anteriores. O `explorer` mapeia os dados em modo somente-leitura, enquanto o `executor` escreve o código no `analysis.ipynb`, roda o kernel do JupyterLab e executa os scripts de verificação.
-3. **Retorno e Auditoria nos Arquivos (Revisão pelo `Gemini 4 Argon`)**: Os subagentes encerram sua execução e devolvem um relatório objetivo ao Argon. Antes de aceitar qualquer entrega, o Argon confere o resultado diretamente nos arquivos gerados (`analysis.ipynb` e `README.md`). Se identificar qualquer divergência métrica ou necessidade de ajuste, ele dispara um novo ciclo de correção. Mesmo na etapa de *Sanity Check*, embora o `3.8 Flash` codifique e execute os scripts de teste, toda a especificação do que deve ser verificado e a revisão crítica do resultado cabem ao Argon.
+Na mesma conversa, um agente só acumula leitura integral de arquivo, saída do Pandas, traceback e o JSON do notebook. Nesta análise, o Argon escreveu um prompt fechado para cada tarefa. O subagente começou sem o histórico anterior. O `explorer` só leu. O `executor` gravou o `analysis.ipynb`, subiu o kernel do JupyterLab e rodou a verificação. O Argon conferiu o relatório em `analysis.ipynb` e neste `README.md` antes de aceitar. Métrica divergente reabria o ciclo. No sanity check, o Flash escreveu e rodou o script. O que entrava no teste, e a leitura do resultado, ficaram com o Argon.
 
 ```mermaid
 flowchart TD
@@ -52,25 +29,20 @@ flowchart TD
     E -->|"3. Aprovado com 100% de Consistência"| F["Artefatos Finais Validados (analysis.ipynb e README.md)"]
 ```
 
-### 2.3 Alocação Inteligente de Modelos e Otimização de Cotas
-Essa arquitetura aplica uma boa prática central de engenharia de IA na era atual: **alocar cada modelo exatamente onde ele entrega sua maior vantagem comparativa**, otimizando simultaneamente a qualidade analítica e o consumo de cotas:
+O resultado ficou no mesmo nível, ou acima, de deixar o modelo principal fazer a análise inteira, com menos uso da cota dele. A execução ficou fora da janela do Argon, e a revisão pegou o underflow de `votes_funny`, os textos de copypasta com milhões de caracteres e as horas de `playtime` fora de ordem.
 
-| Camada | Papel / Modelo | Onde Atua (Foco de Valor) | Impacto em Qualidade e Consumo de Cota |
+| Camada | Papel / modelo | Onde atua | Cota e qualidade |
 | :--- | :--- | :--- | :--- |
-| **Direção Analítica** | Analista de Dados (Humano) | Formulação do problema, hipóteses de negócio e validação estratégica. | Garante alinhamento com o domínio real do produto. |
-| **Orquestração e Revisão** | Modelo Forte (`Gemini 4 Argon`) | Raciocínio analítico complexo, escrita de prompts precisos de delegação e auditoria rigorosa dos resultados. | Preserva a cota do modelo mais capaz apenas para decisões críticas e revisão, mantendo o contexto leve e focado. |
-| **Exploração de Dados** | Subagente `explorer` (`Gemini 3.8 Flash`) | Varredura rápida de grandes arquivos CSV, inspeção de colunas, tipos e chaves primárias (`review_id`). | Consome tokens econômicos e velozes na leitura bruta de dados sem poluir a conversa principal. |
-| **Execução e Sanity Check** | Subagente `executor` (`Gemini 3.8 Flash`) | Escrita de código Pandas/Seaborn, execução do kernel Jupyter, geração de gráficos e scripts de *Sanity Check*. | Absorve o custo de tokens de codificação e validação repetitiva sob supervisão direta do Argon. |
+| Direção analítica | Analista (humano) | Problema, hipóteses de negócio e validação. | Mantém a análise no domínio do produto. |
+| Orquestração e revisão | Gemini 4 Argon | Plano, prompt de delegação e auditoria dos arquivos. | A cota do modelo principal fica na decisão e na revisão. |
+| Exploração | `explorer`, Gemini 3.8 Flash | Varredura dos CSV, colunas, tipos e `review_id`. | A leitura bruta fica fora da conversa principal. |
+| Execução e sanity check | `executor`, Gemini 3.8 Flash | Pandas, Seaborn, kernel, gráficos e scripts de verificação. | Código e checagem repetida ficam sob revisão do Argon. |
 
-Na prática, essa divisão faz com que o **resultado final seja semelhante ou superior ao de deixar apenas um modelo de ponta fazendo todo o trabalho sozinho**, com o bônus de consumir significativamente menos cota do modelo principal. Como o `Gemini 4 Argon` não desgasta sua janela de contexto com tarefas mecânicas de execução, sua capacidade de revisão permanece alta do início ao fim — o que permitiu identificar e documentar com precisão anomalias como o underflow `uint32` em `votes_funny`, os spams de copypasta com milhões de caracteres e as inconsistências temporais de `playtime`.
+## 2. Estrutura do repositório
 
----
+O ambiente usa o [uv](https://github.com/astral-sh/uv), com as versões fixadas no `pyproject.toml` e scripts para subir o JupyterLab.
 
-## 3. Estrutura do Repositório
-
-O ambiente foi configurado com o gerenciador de dependências [uv](https://github.com/astral-sh/uv), com ambiente virtual determinístico e scripts auxiliares para inicialização do JupyterLab.
-
-> Devido ao limite de tamanho de arquivos no GitHub (com `review_info.csv` superando 360 MB), a pasta `data/` é mantida no `.gitignore`. Para reproduzir a análise, faça o download dos dados no Kaggle ([Game Reviews Dataset](https://www.kaggle.com/datasets/sridharstreaks/game-reviews-dataset)) e posicione os 4 arquivos CSV dentro de `data/`.
+O `review_info.csv` passa de 360 MB, acima do limite de arquivo do GitHub. A pasta `data/` está no `.gitignore`. Para reproduzir, baixe o [Game Reviews Dataset](https://www.kaggle.com/datasets/sridharstreaks/game-reviews-dataset) e coloque os 4 CSV em `data/`.
 
 ```text
 game-review/
@@ -88,17 +60,11 @@ game-review/
 └── README.md                             # Documentação técnica do projeto
 ```
 
----
+## 3. Arquitetura relacional e dicionário de dados
 
-## 4. Arquitetura Relacional e Dicionário de Dados
+Os quatro CSV são uma partição vertical indexada por `review_id`.
 
-### 4.1 Partição Vertical Estrita 1:1
-O dataset original foi decomposto em quatro arquivos CSV estruturados sob uma partição vertical estrita indexada pela chave primária `review_id`.
-
-A validação de chaves confirmou:
-* **Unicidade**: Cada uma das quatro partições possui exatamente 1.000.000 de registros com 1.000.000 de valores distintos de `review_id`.
-* **Integridade Referencial**: A interseção dos identificadores entre as quatro tabelas resulta em exatamente 1.000.000 de chaves, com zero registros órfãos ou ausentes.
-* **Alinhamento de Registros**: As quatro tabelas compartilham a mesma ordenação física de linhas, permitindo junções eficientes por chave primária.
+Cada partição tem 1.000.000 de linhas e 1.000.000 de `review_id` distintos. A interseção das quatro chaves também é 1.000.000, com zero registros órfãos ou ausentes. As quatro tabelas compartilham a mesma ordenação física de linhas, e a junção por chave primária aproveita essa ordem.
 
 ```mermaid
 erDiagram
@@ -144,20 +110,16 @@ erDiagram
     }
 ```
 
-### 4.2 Dicionário de Variáveis e Resumo Estrutural
-
-| Partição | Linhas | Colunas | Memória | Variáveis Principais e Descrição |
+| Partição | Linhas | Colunas | Memória | Variáveis principais e descrição |
 | :--- | :---: | :---: | :---: | :--- |
 | `review_info.csv` | 1.000.000 | 10 | 487,7 MB | `review_id`, `language`, `review`, `timestamp_created`, `timestamp_updated`, `recommended`, `votes_helpful`, `votes_funny`, `weighted_vote_score`, `comment_count`. Métricas textuais e de engajamento comunitário. |
 | `game_info.csv` | 1.000.000 | 3 | 82,4 MB | `review_id`, `app_id`, `app_name`. Metadados do catálogo. Contém 59 jogos únicos, com correspondência biunívoca entre `app_id` e `app_name`. |
 | `author_info.csv` | 1.000.000 | 8 | 61,0 MB | `review_id`, `author.steamid`, `author.num_games_owned`, `author.num_reviews`, `author.playtime_forever`, `author.playtime_last_two_weeks`, `author.playtime_at_review`, `author.last_played`. População de 912.553 autores únicos (92,47% com 1 review; maior volume por autor é de 22 reviews). |
 | `purchase_info.csv` | 1.000.000 | 4 | 10,5 MB | `review_id`, `steam_purchase`, `received_for_free`, `written_during_early_access`. Contexto contratual e modalidade de aquisição do título. |
 
----
+## 4. Limpeza dos dados
 
-## 5. Auditoria de Qualidade e Limpeza dos Dados (Data Hygiene)
-
-Antes da etapa de análise estatística, os dados passaram por verificação de qualidade para identificar anomalias comuns em telemetria e extração de APIs:
+Antes das estatísticas, a carga passou por checagem de integridade, contadores, texto, nulos e horas de jogo.
 
 ```mermaid
 flowchart TD
@@ -172,44 +134,35 @@ flowchart TD
     F --> G
 ```
 
-### 1. Correção de Underflow de 32 Bits (`uint32`) em `votes_funny`
-* **Causa**: O contador de votos "engraçado" foi serializado na fonte como um inteiro de 32 bits sem sinal (`uint32`). Quando um registro sofria decremento ou contagem negativa na API (por exemplo, -1, -2, -3, -4), ocorria underflow na representação binária, resultando em valores próximos ao teto numérico de $2^{32} - 1 = 4.294.967.295$.
-* **Incidência**: 49 registros apresentavam valores entre 4.294.967.292 e 4.294.967.295.
-* **Tratamento**: Criação da coluna `votes_funny_clean`, substituindo valores $\ge 4.294.967.292$ por 0. O valor máximo real observado após a correção é de 8.983 votos.
+### Underflow de `uint32` em `votes_funny`
 
-### 2. Detecção de Outliers Extremos de Texto (Spam Copypasta)
-* **Causa**: Embora a Steam estipule um limite regular de 8.000 caracteres por avaliação na interface moderna, versões antigas do cliente ou chamadas diretas permitiram publicações de textos contendo repetições maciças em copypasta.
-* **Incidência**: Duas avaliações aberrantes apresentaram 9.639.004 caracteres (*Arma 3*) e 4.971.225 caracteres (*For Honor*).
-* **Impacto**: Esses dois registros distorciam severamente a média global de comprimento textual (média inflacionada para 265 caracteres com desvio padrão de 10.861). A **mediana real é de 63 caracteres**, com 99% das avaliações abaixo de 2.958 caracteres. Recomenda-se truncamento preventivo em 8.000 caracteres caso os dados sejam utilizados em tarefas de Processamento de Linguagem Natural (NLP).
+O contador de votos "engraçado" foi gravado na origem como inteiro de 32 bits sem sinal. Quando a API decrementava (por exemplo, -1, -2, -3, -4), o valor virava um número perto de $2^{32} - 1 = 4.294.967.295$. São 49 registros entre 4.294.967.292 e 4.294.967.295. A coluna `votes_funny_clean` troca valores $\ge 4.294.967.292$ por 0. O máximo real depois da correção é 8.983 votos.
 
-### 3. Valores Ausentes e Avaliações sem Conteúdo
-* **Dados Faltantes**:
-  * `review`: 1.294 registros nulos (0,13%), somados a 174 avaliações compostas unicamente por espaços em branco (totalizando 1.468 registros sem texto útil, ou 0,15%).
-  * `author.playtime_at_review`: 1.248 registros nulos (0,12%), causados por indisponibilidade de telemetria no instante exato da publicação.
-* **Tratamento**: Preenchimento de strings vazias para o campo textual e filtro amostral específico para análises de correlação temporal.
+### Texto em copypasta
 
-### 4. Inconsistências Telemétricas e Linha Temporal
-* **Tempo de Jogo Invertido**: Em 116 registros (0,01%), o tempo registrado no momento da avaliação era superior ao tempo total de jogo acumulado na conta (`playtime_at_review > playtime_forever`). Aplicou-se a barreira não-negativa $\max(0, \text{playtime\_forever} - \text{playtime\_at\_review})$ para calcular o tempo jogado pós-avaliação.
-* **Sessão Zerada**: 2 registros possuíam `author.last_played == 0`, correspondendo ao marco zero da era Unix (`1970-01-01 00:00:00 UTC`).
-* **Sinalizador de Edições (`is_edited`)**: A comparação entre `timestamp_created` e `timestamp_updated` revelou que 13,11% das avaliações da base foram editadas posteriormente pelo autor.
+A interface atual da Steam limita a avaliação a 8.000 caracteres. Clientes antigos, ou chamadas diretas, publicaram repetição em massa. Duas avaliações têm 9.639.004 caracteres (*Arma 3*) e 4.971.225 (*For Honor*). Com elas, a média de tamanho sobe para 265 caracteres, com desvio padrão de 10.861. A mediana é 63 caracteres, e 99% das avaliações ficam abaixo de 2.958. Para NLP, o texto pode ser truncado em 8.000 caracteres.
 
----
+### Ausências
 
-## 6. Principais Descobertas da Análise Exploratória
+`review` tem 1.294 nulos (0,13%) e mais 174 textos só com espaço: 1.468 sem texto útil (0,15%). `author.playtime_at_review` tem 1.248 nulos (0,12%), sem telemetria no instante da publicação. O campo de texto nulo foi preenchido com string vazia. As análises de correlação temporal filtram esses casos à parte.
 
-### 6.1 Concentração de Catálogo e Variação de Aprovação entre Títulos
-O conjunto de dados abrange 59 títulos comerciais e apresenta alta concentração de avaliações:
-* **Concentração no Top 5**: Apenas 5 jogos (**Arma 3**, **The Elder Scrolls V: Skyrim Special Edition**, **For Honor**, **Darkest Dungeon** e **NieR:Automata**) concentram **54,65% de todas as avaliações** do dataset (546.549 avaliações).
-* **Extremos de Satisfação**:
-  * **Maior Taxa de Recomendação**: *STEINS;GATE 0* (96,5% positiva), *The Legend of Heroes: Trails of Cold Steel II* (95,2%) e *Farm Together* (93,8%).
-  * **Menor Taxa de Recomendação**: *SOS* (27,8% positiva), *DYNASTY WARRIORS 9* (31,2%) e *Bless Online* (38,0%).
+### Horas de jogo e tempo
 
----
+Em 116 registros (0,01%), `playtime_at_review` passa de `playtime_forever`. O tempo jogado depois da avaliação usa $\max(0, \text{playtime\_forever} - \text{playtime\_at\_review})$. Dois registros têm `author.last_played == 0`, o marco Unix `1970-01-01 00:00:00 UTC`. `timestamp_created` comparado com `timestamp_updated` marca `is_edited` em 13,11% das avaliações.
 
-### 6.2 O Comportamento das Avaliações Negativas ("Economia da Insatisfação")
-No geral, o sentimento na plataforma é amplamente positivo (**82,97% de recomendações positivas** contra **17,03% de negativas**). No entanto, a análise do comportamento dos usuários mostra que avaliações negativas mobilizam um engajamento significativamente mais intenso:
+## 5. Descobertas
 
-| Métrica Analisada | Avaliação Positiva | Avaliação Negativa | Comparação Direta |
+### Concentração do catálogo
+
+Cinco jogos concentram 54,65% das avaliações (546.549): Arma 3, The Elder Scrolls V: Skyrim Special Edition, For Honor, Darkest Dungeon e NieR:Automata.
+
+Maior taxa de recomendação: *STEINS;GATE 0* (96,5%), *The Legend of Heroes: Trails of Cold Steel II* (95,2%) e *Farm Together* (93,8%). Menor: *SOS* (27,8%), *DYNASTY WARRIORS 9* (31,2%) e *Bless Online* (38,0%).
+
+### Avaliações negativas ("Economia da Insatisfação")
+
+A base é positiva: 82,97% de recomendações, contra 17,03% de negativas.
+
+| Métrica | Avaliação positiva | Avaliação negativa | Comparação |
 | :--- | :---: | :---: | :--- |
 | Proporção na base | 82,97% | 17,03% | ~4,9 para 1 |
 | Probabilidade de receber voto útil (> 0) | 31,6% | 63,3% | 2,0x mais provável |
@@ -218,12 +171,11 @@ No geral, o sentimento na plataforma é amplamente positivo (**82,97% de recomen
 | Média de comentários recebidos | 0,13 comentários | 0,55 comentários | 4,25x mais comentários |
 | Mediana de tempo jogado pós-avaliação | 13,98 horas | 1,18 horas | 11,8x menos tempo jogado |
 
-Usuários frustrados tendem a escrever textos com o dobro do tamanho mediano, detalhando problemas técnicos, balanceamento ou modelos de monetização. A comunidade responde a esse conteúdo com o dobro da taxa de votos úteis e mais de quatro vezes o volume médio de comentários. Além disso, a publicação de uma análise negativa funciona como um forte sinal de abandono do jogo: a mediana de tempo adicional jogado após a review é de apenas 1,18 hora, frente a quase 14 horas de jogadores que avaliaram positivamente.
+O texto negativo, com o dobro da mediana, costuma descrever problema técnico, balanceamento ou monetização. Depois da review negativa, a mediana de tempo jogado é 1,18 hora, contra 13,98 horas de quem recomendou.
 
----
+### Janela de reembolso de 2 horas
 
-### 6.3 O Efeito da Janela de Reembolso de 2 Horas da Steam
-A Valve oferece reembolso automático integral caso o usuário tenha jogado por **menos de 2 horas**. Essa política deixa marcas claras no comportamento avaliativo ao longo das faixas de tempo:
+A Valve devolve a compra se o jogador ficou menos de 2 horas no jogo. Abaixo de 1 hora, a recomendação é 49,6%. De 1 a 2 horas, 59,9%. Essas reviews cedo têm a maior média de votos úteis da base, 4,77, e outros compradores as usam como alerta antes de comprar. Passadas as 2 horas, a aprovação vai a 77,4% (2 a 5 horas) e chega a 93,3% acima de 500 horas. Quem ficou depois do limite de reembolso já tinha interesse no jogo.
 
 ```mermaid
 xychart-beta
@@ -233,92 +185,85 @@ xychart-beta
     bar [49.6, 59.9, 77.4, 81.4, 84.9, 88.2, 89.5, 89.9, 93.3]
 ```
 
-1. **Abaixo de 2 Horas**: Jogadores com menos de 1 hora de jogo recomendam o título em apenas **49,6%** das vezes. Na faixa de 1 a 2 horas, a aprovação sobe para **59,9%**.
-2. **Pico de Votos Úteis**: Essas avaliações precoces concentram a maior média de votos úteis de toda a base (**4,77 votos por review**), indicando que outros compradores as utilizam ativamente como alerta antes de comprar.
-3. **Pós-2 Horas**: Uma vez ultrapassado o limite de reembolso, o jogador que permaneceu no jogo já demonstrou interesse inicial. A aprovação sobe para **77,4%** (2 a 5 horas) e cresce de maneira contínua até atingir **93,3%** entre jogadores com mais de 500 horas de jogo.
+### Compra, Acesso Antecipado e edições
 
----
+Avaliações escritas no Acesso Antecipado têm 69,8% de aprovação, contra 83,8% nos títulos já em versão estável. A diferença é de 14,0 pontos percentuais.
 
-### 6.4 Canal de Compra, Acesso Antecipado e Avaliações Editadas
-* **Penalidade de Early Access**: Avaliações escritas durante o período de Acesso Antecipado registram aprovação de **69,8%**, contra **83,8%** em títulos já lançados em versão estável — uma diferença de 14,0 pontos percentuais.
-* **Avaliações Editadas**: Os **13,11%** de autores que atualizaram suas avaliações apresentam taxa de recomendação menor (**74,3% vs 84,3%**), textos quatro vezes maiores em média (769,9 vs 188,9 caracteres) e recebem 3,3 vezes mais votos úteis (**8,43 vs 2,56**).
-* **Modalidade de Aquisição**: Compras feitas diretamente na loja Steam têm **83,8%** de aprovação, enquanto chaves de ativação externa registram **81,2%**. Jogos recebidos gratuitamente registram **78,7%** de recomendação (contra **83,2%** em jogos pagos).
+As avaliações editadas são 13,11% da base. A recomendação delas é 74,3%, contra 84,3% nas que não foram editadas. O texto médio tem 769,9 caracteres, contra 188,9, e a média de votos úteis é 8,43, contra 2,56 (3,3 vezes).
 
----
+Compra direta na loja Steam: 83,8% de aprovação. Chave de ativação externa: 81,2%. Jogo recebido de graça: 78,7%, contra 83,2% nos pagos.
 
-### 6.5 Perfil do Crítico Veterano e Panorama por Idioma
-* **Perfil do Crítico Veterano**: Usuários que escrevem muitas avaliações tornam-se progressivamente mais criteriosos:
-  * Autores com 1 avaliação na conta: **84,9% de aprovação** e média de 2,14 votos úteis.
-  * Autores com mais de 50 avaliações: **76,8% de aprovação** (queda de 8,1 p.p.), porém com maior reconhecimento da comunidade (**7,09 votos úteis**, aumento de 3,3x).
-* **Distribuição por Idioma**:
-  * **Inglês**: 49,1% da base, 83,7% de aprovação e média de 3,07 votos úteis.
-  * **Chinês Simplificado**: 15,1% da base, 76,6% de aprovação e média de 6,15 votos úteis.
-  * **Russo**: 8,7% da base, 82,1% de aprovação e média de 4,02 votos úteis.
-  * **Português Brasileiro**: 2,8% da base (27.965 avaliações), 88,2% de aprovação e média de 2,11 votos úteis.
+### Quem escreve muitas avaliações, e o idioma
 
----
+Autor com 1 avaliação na conta: 84,9% de aprovação e média de 2,14 votos úteis. Autor com mais de 50 avaliações: 76,8% de aprovação (queda de 8,1 pontos percentuais) e 7,09 votos úteis (3,3 vezes a média de quem tem uma só).
 
-### 6.6 Sazonalidade e Promoções da Steam
-A evolução temporal mensal entre 2017 e 2020 confirma picos pronunciados de novas avaliações coincidentes com as grandes promoções anuais da Valve:
-* **Steam Summer Sale** (junho/julho): Picos em **junho de 2018 (40.674 reviews)** e **julho de 2019 (33.620 reviews)**.
-* **Steam Autumn & Winter Sales** (novembro/dezembro): Picos em **novembro de 2018 (40.418 reviews)**, **novembro de 2019 (46.169 reviews — maior volume mensal registrado)** e **dezembro de 2019 (34.410 reviews)**.
+| Idioma | Fatia da base | Aprovação | Média de votos úteis |
+| :--- | :---: | :---: | :---: |
+| Inglês | 49,1% | 83,7% | 3,07 |
+| Chinês simplificado | 15,1% | 76,6% | 6,15 |
+| Russo | 8,7% | 82,1% | 4,02 |
+| Português brasileiro | 2,8% (27.965 avaliações) | 88,2% | 2,11 |
 
----
+### Sazonalidade
 
-## 7. Como Executar e Reproduzir
+Entre 2017 e 2020, os meses de promoção da Valve concentram reviews novas. Na Steam Summer Sale, junho de 2018 teve 40.674 reviews e julho de 2019 teve 33.620. No outono e no inverno, novembro de 2018 teve 40.418, novembro de 2019 teve 46.169 (o maior mês da série) e dezembro de 2019 teve 34.410.
 
-### 7.1 Pré-requisitos
-* [Python](https://www.python.org/) 3.12 ou superior (testado no Python 3.14)
-* [uv](https://docs.astral.sh/uv/) (gerenciador de dependências e ambientes virtuais Python)
+## 6. Como executar
 
-### 7.2 Clonagem e Preparação dos Dados
-1. Clone o repositório e sincronize o ambiente virtual com as dependências:
+### Pré-requisitos
+
+- [Python](https://www.python.org/) 3.14 ou superior (versão usada na análise; o `pyproject.toml` pede `>=3.14`)
+- [uv](https://docs.astral.sh/uv/)
+
+### Clonagem e dados
+
+1. Clone o repositório e sincronize o ambiente:
+
    ```bash
    git clone https://github.com/EmersonPalatti/game-review.git
    cd game-review
    uv sync
    ```
 
-2. Baixe o conjunto de dados no Kaggle: [Game Reviews Dataset](https://www.kaggle.com/datasets/sridharstreaks/game-reviews-dataset).
-3. Extraia e copie os 4 arquivos CSV para o diretório `data/` na raiz do projeto:
-   * `data/review_info.csv`
-   * `data/game_info.csv`
-   * `data/author_info.csv`
-   * `data/purchase_info.csv`
+2. Baixe o [Game Reviews Dataset](https://www.kaggle.com/datasets/sridharstreaks/game-reviews-dataset).
+3. Copie os 4 CSV para `data/`:
+   - `data/review_info.csv`
+   - `data/game_info.csv`
+   - `data/author_info.csv`
+   - `data/purchase_info.csv`
 
-### 7.3 Executando o JupyterLab
-O repositório inclui scripts de conveniência para iniciar o servidor JupyterLab:
+### JupyterLab
 
-* **Windows (PowerShell)**:
-  ```powershell
-  .\scripts\start-jupyter.ps1
-  ```
-* **Linux / macOS (Bash)**:
-  ```bash
-  chmod +x ./scripts/start-jupyter.sh
-  ./scripts/start-jupyter.sh
-  ```
+Windows (PowerShell):
 
-O servidor será disponibilizado em `http://127.0.0.1:8888/?token=agentic`.
+```powershell
+.\scripts\start-jupyter.ps1
+```
 
-### 7.4 Execução Não-Interativa via CLI
-Para executar todas as células do notebook sequencialmente e atualizar as saídas via linha de comando:
+Linux ou macOS (Bash):
+
+```bash
+chmod +x ./scripts/start-jupyter.sh
+./scripts/start-jupyter.sh
+```
+
+O servidor sobe em `http://127.0.0.1:8888/?token=agentic`.
+
+### Notebook pela linha de comando
 
 ```bash
 uv run jupyter nbconvert --to notebook --execute analysis.ipynb --inplace
 ```
 
----
+## 7. Tecnologias
 
-## 8. Tecnologias Utilizadas
-* **Linguagem**: Python
-* **Análise e Manipulação de Dados**: [Pandas](https://pandas.pydata.org/) e [NumPy](https://numpy.org/)
-* **Visualização de Dados**: [Matplotlib](https://matplotlib.org/) e [Seaborn](https://seaborn.pydata.org/)
-* **Ambiente Interativo**: [JupyterLab](https://jupyter.org/) e `ipykernel`
-* **Gerenciamento de Ambiente**: [uv](https://docs.astral.sh/uv/)
-* **Fluxo Analítico Assistido por IA**: Arquitetura Orquestrador (`Gemini 4 Argon`) + Subagentes `explorer` / `executor` (`Gemini 3.8 Flash`) regida via `AGENTS.md`.
+- Python
+- [Pandas](https://pandas.pydata.org/) e [NumPy](https://numpy.org/)
+- [Matplotlib](https://matplotlib.org/) e [Seaborn](https://seaborn.pydata.org/)
+- [JupyterLab](https://jupyter.org/) e `ipykernel`
+- [uv](https://docs.astral.sh/uv/)
+- Gemini 4 Argon, com `explorer` e `executor` no Gemini 3.8 Flash, via `AGENTS.md`
 
----
+## 8. Autor
 
-## 9. Autor
-Projeto desenvolvido por [Emerson Palatti](https://github.com/EmersonPalatti).
+[Emerson Palatti](https://github.com/EmersonPalatti).
