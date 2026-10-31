@@ -1,0 +1,17 @@
+[project]
+name = "game-review"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "ipykernel>=7.4.0",
+    "jupyter>=1.1.1",
+    "jupyter-collaboration>=5.0.4",
+    "jupyter-mcp-tools>=0.1.8",
+    "jupyterlab>=4.6.5",
+    "matplotlib>=3.11.2",
+    "pandas>=3.1.0",
+    "pycrdt>=0.14.10",
+    "seaborn>=0.13.2",
+]
