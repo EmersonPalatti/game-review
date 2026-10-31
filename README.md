@@ -1,6 +1,6 @@
 # Steam Game Reviews: Análise Exploratória de Dados (1 Milhão de Reviews)
 
-> Análise exploratória sobre integridade relacional, telemetria de jogadores, comportamento de avaliações e dinâmica de consumo na Steam.
+> Análise exploratória sobre integridade relacional, telemetria de jogadores, comportamento de avaliações e dinâmica de consumo na Steam, aliando a investigação de 1 milhão de registros a uma metodologia prática de análise de dados assistida por agentes de IA.
 
 ---
 
@@ -10,14 +10,57 @@ A Steam é a principal plataforma de distribuição digital de jogos para comput
 
 Este projeto realiza uma Análise Exploratória de Dados (EDA) em um conjunto de 1.000.000 de avaliações de usuários registradas entre março de 2013 e janeiro de 2021. Os dados têm como origem o [Game Reviews Dataset](https://www.kaggle.com/datasets/sridharstreaks/game-reviews-dataset) no Kaggle. O corpus cobre 59 jogos e 912.553 autores distintos, permitindo investigar a consistência dos dados da plataforma, o comportamento de jogadores satisfeitos versus insatisfeitos e os padrões de consumo e tempo de jogo.
 
+Além da investigação empírica sobre o ecossistema da Steam, este repositório documenta uma metodologia prática de **Análise de Dados Assistida por IA** (*AI-Assisted Data Analysis*). Nela, o analista utiliza uma arquitetura em camadas — combinando um modelo orquestrador e revisor de alto raciocínio com subagentes especializados e rápidos de exploração e execução — para investigar bases volumosas mantendo rigor estatístico, reprodutibilidade e higiene da janela de contexto.
+
 ### Destaques do Estudo:
 * **Escala do Dataset**: 1.000.000 de registros particionados verticalmente em 4 tabelas relacionais com integridade referencial 1:1 estrita.
 * **Auditoria e Limpeza de Dados**: Identificação e tratamento de underflow de 32 bits sem sinal (`uint32`) em contadores de votos, textos com milhões de caracteres decorrentes de spam/copypasta, valores nulos e inconsistências na telemetria de horas de jogo.
 * **Comportamento e Negócio**: Investigação quantitativa da dinâmica de avaliações negativas ("Economia da Insatisfação"), do efeito direto da política de reembolso de 2 horas da Valve e do impacto de lançamentos em Acesso Antecipado (*Early Access*).
+* **Fluxo Analítico com Orquestrador e Subagentes (`AGENTS.md`)**: Adoção de uma arquitetura modular em camadas, separando o raciocínio estratégico e validação estatística da execução pesada de código e leitura de dados volumosos.
 
 ---
 
-## 2. Estrutura do Repositório
+## 2. Metodologia: Análise de Dados Assistida por IA (`AGENTS.md`)
+
+### 2.1 Por que um `AGENTS.md` Minimalista?
+Em projetos de análise de dados orientados a bases massivas — como o presente estudo, que abrange 1 milhão de registros e aproximadamente 481 MB de dados distribuídos em 4 arquivos CSV —, a janela de contexto do modelo principal é o recurso mais sensível. Instruções de sistema longas, repletas de regras genéricas e prescrições abstratas, diluem a atenção do modelo e aumentam o risco de desvios operacionais ou alucinações estatísticas.
+
+O arquivo `AGENTS.md` deste projeto foi estruturado de forma enxuta justamente para atuar como um contrato operacional direto e objetivo. Ele estabelece com clareza:
+* **Quando delegar**: Tarefas de varredura ampla de arquivos, exploração de esquemas, execução de testes ou comandos iterativos que poluiriam o contexto principal são direcionadas a subagentes.
+* **Como delegar**: Cada despacho deve conter formalmente objetivo, arquivos de trabalho, critérios de pronto e comandos explícitos de verificação.
+* **O que deve retornar**: Devoluções concisas contendo apenas caminhos, trechos e resumos para exploração, ou arquivos modificados e relatórios de verificação para execução.
+
+### 2.2 Divisão de Papéis: Orquestrador vs. Subagentes na Ciência de Dados
+O uso de agentes monolíticos em ciência de dados frequentemente falha pelo acúmulo desordenado de artefatos intermediários: a leitura integral de múltiplos arquivos, saídas volumosas de comandos no Pandas, tracebacks de depuração e estruturas JSON brutas de notebooks Jupyter degradam rapidamente o contexto analítico. Como consequência, o modelo perde o alinhamento com premissas de negócio e introduz inconsistências métricas.
+
+A estrutura adotada distribui o ciclo de análise em papéis bem definidos:
+
+| Camada | Papel / Modelo | Responsabilidade no Ciclo Analítico | Ganho Prático na Análise |
+| :--- | :--- | :--- | :--- |
+| **Direção Analítica** | Analista de Dados (Humano) | Formulação do problema, direcionamento de escopo, validação de hipóteses de negócio e revisão crítica. | Mantém o foco estratégico e o julgamento de domínio. |
+| **Orquestração e Revisão** | Agente Principal (`Gemini 4 Argon`) | Planejamento das etapas da EDA, escrita das especificações de delegação e auditoria cruzada dos resultados nos arquivos. | Contexto limpo, preservado para raciocínio analítico e verificação de consistência. |
+| **Exploração de Dados** | Subagente `explorer` (`Gemini 3.8 Flash`) | Varredura paralela e somente-leitura dos arquivos CSV, mapeamento de chaves (`review_id`), esquemas e volumetria. | Isola leituras pesadas e retorna apenas o resumo estruturado ao orquestrador. |
+| **Execução e Sanity Check** | Subagente `executor` (`Gemini 3.8 Flash`) | Escrita das células no `analysis.ipynb`, execução do kernel Jupyter, geração de gráficos e bateria de validação (*Sanity Check*). | Absorve logs de execução e garante que todo número documentado reflita a saída real do código. |
+
+### 2.3 Fluxo de Trabalho e Garantia de Qualidade (Sanity Check)
+O fluxo de trabalho estabelece uma cadeia de responsabilidade onde nenhuma conclusão estatística é aceita sem verificação empírica no código:
+
+```mermaid
+flowchart TD
+    A["Analista de Dados (Humano)<br>Definicao do Escopo e Perguntas de Negocio"] --> B["Orquestrador (Gemini 4 Argon)<br>Planejamento da EDA e Especificacoes"]
+    B -->|"Delegacao de Exploracao (Somente Leitura)"| C["Subagente explorer (Gemini 3.8 Flash)<br>Varredura de Esquemas e Chaves Primarias"]
+    B -->|"Delegacao de Implementacao e Execucao"| D["Subagente executor (Gemini 3.8 Flash)<br>Codificacao e Execucao do Kernel Jupyter"]
+    C -->|"Resumo Estruturado de Esquemas"| B
+    D -->|"Log de Execucao e Sanity Check"| B
+    B -->|"Auditoria Cruzada e Validacao"| E["Artefatos Finais Auditados<br>(analysis.ipynb e README.md)"]
+    E -->|"Revisao Critica e Aprovacao"| A
+```
+
+Essa separação arquitetural permitiu detectar precocemente e tratar com rigor anomalias como o underflow de 32 bits sem sinal (`uint32`) em `votes_funny`, os outliers extremos provocados por textos de copypasta (com milhões de caracteres) e o desalinhamento temporal de telemetria (`playtime_at_review > playtime_forever`), auditando os resultados de cada célula do notebook antes da consolidação final da documentação.
+
+---
+
+## 3. Estrutura do Repositório
 
 O ambiente foi configurado com o gerenciador de dependências [uv](https://github.com/astral-sh/uv), com ambiente virtual determinístico e scripts auxiliares para inicialização do JupyterLab.
 
@@ -41,9 +84,9 @@ game-review/
 
 ---
 
-## 3. Arquitetura Relacional e Dicionário de Dados
+## 4. Arquitetura Relacional e Dicionário de Dados
 
-### 3.1 Partição Vertical Estrita 1:1
+### 4.1 Partição Vertical Estrita 1:1
 O dataset original foi decomposto em quatro arquivos CSV estruturados sob uma partição vertical estrita indexada pela chave primária `review_id`.
 
 A validação de chaves confirmou:
@@ -95,7 +138,7 @@ erDiagram
     }
 ```
 
-### 3.2 Dicionário de Variáveis e Resumo Estrutural
+### 4.2 Dicionário de Variáveis e Resumo Estrutural
 
 | Partição | Linhas | Colunas | Memória | Variáveis Principais e Descrição |
 | :--- | :---: | :---: | :---: | :--- |
@@ -106,7 +149,7 @@ erDiagram
 
 ---
 
-## 4. Auditoria de Qualidade e Limpeza dos Dados (Data Hygiene)
+## 5. Auditoria de Qualidade e Limpeza dos Dados (Data Hygiene)
 
 Antes da etapa de análise estatística, os dados passaram por verificação de qualidade para identificar anomalias comuns em telemetria e extração de APIs:
 
@@ -146,9 +189,9 @@ flowchart TD
 
 ---
 
-## 5. Principais Descobertas da Análise Exploratória
+## 6. Principais Descobertas da Análise Exploratória
 
-### 5.1 Concentração de Catálogo e Variação de Aprovação entre Títulos
+### 6.1 Concentração de Catálogo e Variação de Aprovação entre Títulos
 O conjunto de dados abrange 59 títulos comerciais e apresenta alta concentração de avaliações:
 * **Concentração no Top 5**: Apenas 5 jogos (**Arma 3**, **The Elder Scrolls V: Skyrim Special Edition**, **For Honor**, **Darkest Dungeon** e **NieR:Automata**) concentram **54,65% de todas as avaliações** do dataset (546.549 avaliações).
 * **Extremos de Satisfação**:
@@ -157,7 +200,7 @@ O conjunto de dados abrange 59 títulos comerciais e apresenta alta concentraç�
 
 ---
 
-### 5.2 O Comportamento das Avaliações Negativas ("Economia da Insatisfação")
+### 6.2 O Comportamento das Avaliações Negativas ("Economia da Insatisfação")
 No geral, o sentimento na plataforma é amplamente positivo (**82,97% de recomendações positivas** contra **17,03% de negativas**). No entanto, a análise do comportamento dos usuários mostra que avaliações negativas mobilizam um engajamento significativamente mais intenso:
 
 | Métrica Analisada | Avaliação Positiva | Avaliação Negativa | Comparação Direta |
@@ -173,7 +216,7 @@ Usuários frustrados tendem a escrever textos com o dobro do tamanho mediano, de
 
 ---
 
-### 5.3 O Efeito da Janela de Reembolso de 2 Horas da Steam
+### 6.3 O Efeito da Janela de Reembolso de 2 Horas da Steam
 A Valve oferece reembolso automático integral caso o usuário tenha jogado por **menos de 2 horas**. Essa política deixa marcas claras no comportamento avaliativo ao longo das faixas de tempo:
 
 ```mermaid
@@ -190,14 +233,14 @@ xychart-beta
 
 ---
 
-### 5.4 Canal de Compra, Acesso Antecipado e Avaliações Editadas
+### 6.4 Canal de Compra, Acesso Antecipado e Avaliações Editadas
 * **Penalidade de Early Access**: Avaliações escritas durante o período de Acesso Antecipado registram aprovação de **69,8%**, contra **83,8%** em títulos já lançados em versão estável — uma diferença de 14,0 pontos percentuais.
 * **Avaliações Editadas**: Os **13,11%** de autores que atualizaram suas avaliações apresentam taxa de recomendação menor (**74,3% vs 84,3%**), textos quatro vezes maiores em média (769,9 vs 188,9 caracteres) e recebem 3,3 vezes mais votos úteis (**8,43 vs 2,56**).
 * **Modalidade de Aquisição**: Compras feitas diretamente na loja Steam têm **83,8%** de aprovação, enquanto chaves de ativação externa registram **81,2%**. Jogos recebidos gratuitamente registram **78,7%** de recomendação (contra **83,2%** em jogos pagos).
 
 ---
 
-### 5.5 Perfil do Crítico Veterano e Panorama por Idioma
+### 6.5 Perfil do Crítico Veterano e Panorama por Idioma
 * **Perfil do Crítico Veterano**: Usuários que escrevem muitas avaliações tornam-se progressivamente mais criteriosos:
   * Autores com 1 avaliação na conta: **84,9% de aprovação** e média de 2,14 votos úteis.
   * Autores com mais de 50 avaliações: **76,8% de aprovação** (queda de 8,1 p.p.), porém com maior reconhecimento da comunidade (**7,09 votos úteis**, aumento de 3,3x).
@@ -209,20 +252,20 @@ xychart-beta
 
 ---
 
-### 5.6 Sazonalidade e Promoções da Steam
+### 6.6 Sazonalidade e Promoções da Steam
 A evolução temporal mensal entre 2017 e 2020 confirma picos pronunciados de novas avaliações coincidentes com as grandes promoções anuais da Valve:
 * **Steam Summer Sale** (junho/julho): Picos em **junho de 2018 (40.674 reviews)** e **julho de 2019 (33.620 reviews)**.
 * **Steam Autumn & Winter Sales** (novembro/dezembro): Picos em **novembro de 2018 (40.418 reviews)**, **novembro de 2019 (46.169 reviews — maior volume mensal registrado)** e **dezembro de 2019 (34.410 reviews)**.
 
 ---
 
-## 6. Como Executar e Reproduzir
+## 7. Como Executar e Reproduzir
 
-### 6.1 Pré-requisitos
+### 7.1 Pré-requisitos
 * [Python](https://www.python.org/) 3.12 ou superior (testado no Python 3.14)
 * [uv](https://docs.astral.sh/uv/) (gerenciador de dependências e ambientes virtuais Python)
 
-### 6.2 Clonagem e Preparação dos Dados
+### 7.2 Clonagem e Preparação dos Dados
 1. Clone o repositório e sincronize o ambiente virtual com as dependências:
    ```bash
    git clone https://github.com/EmersonPalatti/game-review.git
@@ -237,7 +280,7 @@ A evolução temporal mensal entre 2017 e 2020 confirma picos pronunciados de no
    * `data/author_info.csv`
    * `data/purchase_info.csv`
 
-### 6.3 Executando o JupyterLab
+### 7.3 Executando o JupyterLab
 O repositório inclui scripts de conveniência para iniciar o servidor JupyterLab:
 
 * **Windows (PowerShell)**:
@@ -252,7 +295,7 @@ O repositório inclui scripts de conveniência para iniciar o servidor JupyterLa
 
 O servidor será disponibilizado em `http://127.0.0.1:8888/?token=agentic`.
 
-### 6.4 Execução Não-Interativa via CLI
+### 7.4 Execução Não-Interativa via CLI
 Para executar todas as células do notebook sequencialmente e atualizar as saídas via linha de comando:
 
 ```bash
@@ -261,14 +304,15 @@ uv run jupyter nbconvert --to notebook --execute analysis.ipynb --inplace
 
 ---
 
-## 7. Tecnologias Utilizadas
+## 8. Tecnologias Utilizadas
 * **Linguagem**: Python
 * **Análise e Manipulação de Dados**: [Pandas](https://pandas.pydata.org/) e [NumPy](https://numpy.org/)
 * **Visualização de Dados**: [Matplotlib](https://matplotlib.org/) e [Seaborn](https://seaborn.pydata.org/)
 * **Ambiente Interativo**: [JupyterLab](https://jupyter.org/) e `ipykernel`
 * **Gerenciamento de Ambiente**: [uv](https://docs.astral.sh/uv/)
+* **Fluxo Analítico Assistido por IA**: Arquitetura Orquestrador (`Gemini 4 Argon`) + Subagentes `explorer` / `executor` (`Gemini 3.8 Flash`) regida via `AGENTS.md`.
 
 ---
 
-## 8. Autor
+## 9. Autor
 Projeto desenvolvido por [Emerson Palatti](https://github.com/EmersonPalatti).

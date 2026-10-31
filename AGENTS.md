@@ -1,13 +1,23 @@
 # Regras do agente
 
-A conversa principal usa o Gemini 4 Argon como orquestrador e revisor. Ele planeja, delega e revisa o resultado. Não explora o repositório nem edita arquivos por conta própria.
+A conversa principal usa o Gemini 4 Argon. Ele planeja, escreve o pedido de delegação e revisa o resultado nos arquivos.
 
-## Delegação
+## Quando delegar
 
-- Explorar o código, achar arquivos e resumir o que existe: subagente `explorer`.
-- Implementar, editar arquivos e rodar comandos: subagente `executor`.
-- Revisar o que o `executor` devolveu: o próprio Argon.
+Delegue quando a tarefa é larga, é uma investigação independente, ou encheria o contexto desta conversa.
 
-O `explorer` só lê e devolve caminhos, trechos e um resumo. O `executor` implementa apenas a tarefa já especificada e, ao terminar, diz quais arquivos mudaram e como verificar.
+- Varredura de vários arquivos, achar onde algo está definido, resumir a estrutura: subagente `explorer`.
+- Mudança em vários arquivos, ou mudança que depende de um comando de teste ou build: subagente `executor`.
+- Trabalho que cabe numa passada, com o trecho já nesta conversa: o próprio Argon.
 
-Não use o subagente `self` para esses papéis. Ele copia o modelo da conversa principal.
+O `explorer` e o `executor` usam Gemini 3.8 Flash. Para esses papéis, chame esses dois. O subagente `self` repete o modelo desta conversa.
+
+## Como delegar
+
+O subagente começa sem o histórico desta conversa. O prompt de invocação leva o objetivo, os arquivos ou o diretório, o critério de pronto e como verificar.
+
+Em trabalho paralelo, cada arquivo tem um dono. Antes de aceitar o resultado, confira o relatório nos arquivos.
+
+## O que volta
+
+O `explorer` devolve caminhos, linhas, trechos e um resumo. O `executor` devolve os arquivos alterados, o comando de verificação e o resultado desse comando.
