@@ -6,6 +6,8 @@ A Steam é a principal loja digital de jogos para computador, com centenas de mi
 
 A análise é assistida por IA. O escopo ficou mais solto do que um roteiro fechado de perguntas: o teste era o que o Gemini 4 Argon recuperava dos CSV sem um dicionário de dados. Os subagentes `explorer` e `executor` usam o Gemini 3.8 Flash para ler os arquivos e escrever o notebook. O protocolo está em `AGENTS.md`.
 
+[![Resumo visual do experimento e principais achados](assets/overview.gif)](assets/overview.mp4)
+
 ## 1. Metodologia do experimento
 
 O modelo da conversa principal é o Gemini 4 Argon. Em 13 de outubro de 2026, a Google o lançou para uso geral como modelo de fronteira para trabalho longo em código, finanças, direito e ciência. No [model card](https://deepmind.google/models/model-cards/gemini-4-argon/) daquele mês, o Argon lidera a tabela de comparação no [Vals Index](https://www.vals.ai/benchmarks/vals_index) (68,9%, contra 67,0% do Claude Opus 5.5 e 63,1% do GPT-6 Astra) e em Chartography, leitura de gráficos (71,6%, contra 71,0% e 66,3%). No [exame de análise de dados da Plotly](https://plotly.com/blog/gemini-4-argon-plotly-data-analytics-bench/), publicado no mesmo dia, o Argon acertou 41 de 43 questões (95%) e achou os 5 padrões escondidos na base, sem aviso para procurá-los. Até aquela data, só o GPT-6.1 Sol e o GPT-6 Astra tinham fechado os 5. O total de 41 não era o maior da prova: Sol e Astra fecharam 43 de 43.
@@ -48,6 +50,9 @@ O `review_info.csv` passa de 360 MB, acima do limite de arquivo do GitHub. A pas
 
 ```text
 game-review/
+├── assets/                               # Resumo visual animado do experimento (GIF e MP4 1080p)
+│   ├── overview.gif                      # Animação inline para o README
+│   └── overview.mp4                      # Vídeo completo em alta definição (1920x1080)
 ├── data/                                 # Partições relacionais dos dados (1:1 - baixadas via Kaggle)
 │   ├── review_info.csv                   # Texto, votos, recomendação e engajamento (10 colunas, ~364 MB)
 │   ├── game_info.csv                     # Identificação dos jogos (app_id e app_name) (3 colunas, ~28 MB)
