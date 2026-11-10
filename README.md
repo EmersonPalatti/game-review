@@ -4,17 +4,20 @@ Análise de 1.000.000 de avaliações da Steam, de março de 2013 a janeiro de 2
 
 A Steam é a principal loja digital de jogos para computador, com centenas de milhões de usuários ativos por mês e dezenas de milhares de títulos. A avaliação pesa na visibilidade do jogo, no algoritmo de recomendação e na compra.
 
-A análise é assistida por IA. O escopo ficou mais solto do que um roteiro fechado de perguntas: o teste era o que o Gemini 4 Argon recuperava dos CSV sem um dicionário de dados. Os subagentes `explorer` e `executor` usam o Gemini 3.8 Flash para ler os arquivos e escrever o notebook. O protocolo está em `AGENTS.md`.
+Para explorar os dados sem rodar o notebook, use o **[dashboard ao vivo](https://game-review-dashboard-sage.vercel.app/)** ([repositório](https://github.com/EmersonPalatti/game-review-dashboard)).
 
 [![Resumo visual do experimento e principais achados](assets/overview.gif)](assets/overview.mp4)
 
+## Principais achados
+
+- **Reviews negativas pesam mais:** são só 17% da base, mas têm o dobro de chance de receber voto útil e 2,8 vezes mais votos úteis em média.
+- **A janela de reembolso de 2 horas aparece nos dados:** abaixo de 1 hora jogada, a recomendação é 49,6%. Passadas as 2 horas, sobe para 77,4% e chega a 93,3% acima de 500 horas.
+- **Acesso Antecipado derruba a nota:** 69,8% de aprovação, contra 83,8% em títulos estáveis.
+- **Problemas de dados encontrados e tratados:** underflow de `uint32` em `votes_funny` (49 registros perto de 4,29 bilhões) e reviews copypasta de até 9,6 milhões de caracteres.
+
 ## 1. Metodologia do experimento
 
-O modelo da conversa principal é o Gemini 4 Argon. Em 13 de outubro de 2026, a Google o lançou para uso geral como modelo de fronteira para trabalho longo em código, finanças, direito e ciência. No [model card](https://deepmind.google/models/model-cards/gemini-4-argon/) daquele mês, o Argon lidera a tabela de comparação no [Vals Index](https://www.vals.ai/benchmarks/vals_index) (68,9%, contra 67,0% do Claude Opus 5.5 e 63,1% do GPT-6 Astra) e em Chartography, leitura de gráficos (71,6%, contra 71,0% e 66,3%). No [exame de análise de dados da Plotly](https://plotly.com/blog/gemini-4-argon-plotly-data-analytics-bench/), publicado no mesmo dia, o Argon acertou 41 de 43 questões (95%) e achou os 5 padrões escondidos na base, sem aviso para procurá-los. Até aquela data, só o GPT-6.1 Sol e o GPT-6 Astra tinham fechado os 5. O total de 41 não era o maior da prova: Sol e Astra fecharam 43 de 43.
-
-Em 30 de outubro de 2026 o [Gemini 4 Carbon](https://blog.google/innovation-and-ai/models-and-research/gemini-models/introducing-gemini-4-carbon/), anunciado em 28 de outubro, lidera o Artificial Analysis Intelligence Index v5.0 com 59, contra 50 do Argon, na [tabela da DeepMind](https://deepmind.google/models/gemini/). Nesse dia ele ainda não está no uso geral. A Google libera o Carbon primeiro a um grupo de defensores de cibersegurança pelo [Fairwind](https://deepmind.google/fairwind-program/), e só depois a desenvolvedores, empresas e consumidores, sem data publicada. Para quem usa o Gemini no produto, o Argon, aberto ao público desde 13 de outubro, é o modelo de fronteira acessível. Esta análise ficou nele.
-
-O experimento daqui não usa a nota desses exames. O `AGENTS.md` e o prompt inicial não descrevem as colunas nem a relação entre as tabelas. O arquivo só define a delegação: quando chamar um subagente, o que o prompt leva (objetivo, arquivos, critério de pronto e comando de verificação) e o que volta. O `explorer` devolve caminhos, linhas e um resumo. O `executor` devolve os arquivos alterados e o log da verificação.
+A análise é assistida por IA. O teste era quanto um agente recupera dos CSV **sem dicionário de dados**: o `AGENTS.md` e o prompt inicial não descrevem as colunas nem a relação entre as tabelas. O orquestrador é o Gemini 4 Argon, e os subagentes `explorer` e `executor` usam o Gemini 3.8 Flash para ler os arquivos e escrever o notebook. O arquivo só define a delegação: quando chamar um subagente, o que o prompt leva (objetivo, arquivos, critério de pronto e comando de verificação) e o que volta. O `explorer` devolve caminhos, linhas e um resumo. O `executor` devolve os arquivos alterados e o log da verificação.
 
 Lendo os arquivos, o Argon e o Flash chegaram à partição vertical 1:1 por `review_id`, ao underflow `uint32` em `votes_funny`, ao spam de copypasta e ao efeito da janela de reembolso de 2 horas. Nesse critério, o experimento fechou: os quatro achados saíram dos CSV, sem dicionário, e a revisão conferiu o resultado nos arquivos.
 
